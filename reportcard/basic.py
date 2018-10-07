@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import datetime
 import itertools
@@ -65,7 +65,7 @@ def sort_comments(list_of_comments):
     return sorted(list_of_comments, key=lambda c: c.created_at)
 
 
-def compute_buisness_hour_delta(start_dt, end_dt):
+def compute_buisness_hour_delta(start_dt: datetime.datetime, end_dt: datetime.datetime):
     # MRG NOTE: Nasty + slow
     assert start_dt < end_dt
     print(start_dt, start_dt.tzinfo, end_dt.tzinfo)
@@ -74,10 +74,10 @@ def compute_buisness_hour_delta(start_dt, end_dt):
             break
     return datetime.timedelta(minutes=mins)
 
-
 def compute_pr_stats(pr_list):
     data_rows = []
     for pr in pr_list:
+        print("Scanning: ")
         # +- of code
         adds, dels, file_count = compute_files_diff(list(pr.files()))
 
@@ -104,25 +104,16 @@ def compute_pr_stats(pr_list):
         # Review comments
         comments = len(issue_comments) + len(review_comments)
 
-        data_rows.append((
-            pr.user.login,
-            feedback_delta,
-            total_delta,
-            comments,
-            adds,
-            dels,
-            file_count))
+        data_rows.append(dict(
+            user=pr.user.login,
+            time_feedback=feedback_delta,
+            time_open=total_delta,
+            comments=comments,
+            adds=adds,
+            dels=dels,
+            file_count=file_count))
 
-    return pd.DataFrame.from_records(
-        data_rows,
-        columns=(
-            "user",
-            "time_feedback",
-            "time_open",
-            "comments",
-            "adds",
-            "dels",
-            "file_count"))
+    return pd.DataFrame.from_records(data_rows)
 
 cfg = json.load(open(".config.json"))
 gh = github3.login(cfg["username"], password=cfg["password"])
@@ -130,12 +121,21 @@ gh = github3.login(cfg["username"], password=cfg["password"])
 user = gh.user("meawoppl")
 kesm_repo = gh.repository("3scan", "kesm")
 
-this_morning = datetime.datetime.now() - datetime.timedelta(hours=1)
-kesm_prs = get_prs_since(kesm_repo, this_morning)
+this_morning = datetime.datetime.now() - datetime.timedelta(hours=100)
+last_meeting_data = datetime.datetime(2018, 8, 6)
+
+kesm_prs = get_prs_since(kesm_repo, last_meeting_data)
 kesm_stats = compute_pr_stats(kesm_prs)
 pprint(kesm_stats)
-print("PR's")
+
+print("PR's Count")
 print(kesm_stats.groupby("user").count())
+
+print("PR's Sum")
+print(kesm_stats.groupby("user").sum())
+
+print("PR's Mean")
+print(kesm_stats.groupby("user").mean())
 
 print("Lines added")
 print(kesm_stats.groupby("user")["adds"].sum())
